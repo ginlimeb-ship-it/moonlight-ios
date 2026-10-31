@@ -930,11 +930,7 @@ static NSArray<NSString*>* composedCharacters(NSString* string) {
         dispatch_async(keyboardTextQueue, ^{
             for (NSUInteger i = 0; i < backspaces; i++) {
                 LiSendKeyboardEvent(0x08, KEY_ACTION_DOWN, 0);
-                // When replacing text (like 아 -> 안), send the new text right away so
-                // the host doesn't render the removed character for several frames.
-                if (addedText.length == 0) {
-                    usleep(50 * 1000);
-                }
+                usleep(50 * 1000);
                 LiSendKeyboardEvent(0x08, KEY_ACTION_UP, 0);
             }
             [self sendKeyboardText:addedText];
