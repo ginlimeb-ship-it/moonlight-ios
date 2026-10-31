@@ -1,0 +1,47 @@
+name: Build unsigned VoidLink KO IPA (personal sideload)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - voidlink-korean-test
+
+permissions:
+  contents: read
+
+jobs:
+  ipa:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Download iOS platform
+        run: xcodebuild -downloadPlatform iOS
+
+      - name: Build for device without signing
+        run: |
+          xcodebuild -project VoidLink.xcodeproj -scheme VoidLink -configuration Debug \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" CODE_SIGN_ENTITLEMENTS="" DEVELOPMENT_TEAM="" \
+            PRODUCT_BUNDLE_IDENTIFIER=com.ginlime.voidlink-ko \
+            build
+
+      - name: Package IPA
+        run: |
+          APP=$(find build/Build/Products -maxdepth 2 -name "*.app" -path "*iphoneos*" | head -1)
+          echo "App: $APP"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'VoidLink KO'" "$APP/Info.plist" || \
+            /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'VoidLink KO'" "$APP/Info.plist"
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry VoidLink-KO.ipa Payload
+          ls -la VoidLink-KO.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: VoidLink-KO-ipa
+          path: VoidLink-KO.ipa
