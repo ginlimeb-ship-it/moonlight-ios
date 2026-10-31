@@ -848,11 +848,22 @@ static NSArray<NSString*>* composedCharacters(NSString* string) {
 }
 
 // Must be called on keyboardTextQueue
-- (void)sendKeyboardText:(NSString*)text {
+- (void)sendKeyboardText:(NSString*)text withModifiersHeld:(BOOL)modifiersHeld {
     if (text.length == 0) {
         return;
     }
-    
+
+    // Send typed text as UTF-8 so it comes out as typed regardless of the host's
+    // input language. Key events would be translated by the host's IME, so Latin
+    // letters typed while a Korean or Japanese IME is active would turn into Hangul
+    // or kana. Key events are only needed while a toolbar modifier is held, so
+    // shortcuts like Ctrl+C keep working.
+    if (!modifiersHeld) {
+        const char* utf8String = [text UTF8String];
+        LiSendUtf8TextEvent(utf8String, (int)strlen(utf8String));
+        return;
+    }
+
     // Check if any characters exist which can't be represented in a basic key event
     for (NSUInteger i = 0; i < text.length; i++) {
         struct KeyEvent event = [KeyboardSupport translateKeyEvent:[text characterAtIndex:i] withModifierFlags:0];
@@ -927,13 +938,14 @@ static NSArray<NSString*>* composedCharacters(NSString* string) {
     sentKeyboardText = currentText;
     
     if (backspaces > 0 || addedText.length > 0) {
+        BOOL modifiersHeld = keysDown.count > 0;
         dispatch_async(keyboardTextQueue, ^{
             for (NSUInteger i = 0; i < backspaces; i++) {
                 LiSendKeyboardEvent(0x08, KEY_ACTION_DOWN, 0);
                 usleep(50 * 1000);
                 LiSendKeyboardEvent(0x08, KEY_ACTION_UP, 0);
             }
-            [self sendKeyboardText:addedText];
+            [self sendKeyboardText:addedText withModifiersHeld:modifiersHeld];
         });
     }
     
